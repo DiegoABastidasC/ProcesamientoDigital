@@ -1,0 +1,234 @@
+/*
+ * inversor.c
+ *
+ *  Created on: 29/04/2020
+ *      Author: Jkiol115
+ */
+
+/**
+ * main.c
+ */
+
+//  El proposito de este programa es realizar la FFT de una rampa y guardarla en xn. al final del programa se tiene un
+
+#include "F28x_Project.h"
+#include "math.h"
+    //**********************************************************************************************
+    //********************************definiciones del programa*************************************
+    //**********************************************************************************************
+
+#define PI   3.141592
+#define buffer 512
+Uint16 N        = 512; // '1 0000 0000' >>1 '1000 0000'
+Uint16 MASK1;
+Uint16 MASK2;
+Uint16 Iinv[buffer];
+
+float32 xn[buffer][2];
+float32 wr[buffer/2][2];
+Uint16 u, w, et, r, m, n, nm, lm;
+float32 aux0, aux1, ans;
+
+    //**********************************************************************************************
+    //**********************************prototipos del programa*************************************
+    //**********************************************************************************************
+
+void BitInverso(void);
+void fft(void);
+void absarg(void);
+    //**********************************************************************************************
+    //**************************************programa inicial****************************************
+    //**********************************************************************************************
+void main(void)
+{
+
+    //**********************************************************************************************
+    //********************************incialzacion del sistema**************************************
+    //**********************************************************************************************
+    // configurar la tarjeta con condiciones iniciales, el archivo de InitSysCtrl
+    InitSysCtrl();
+
+    //**********************************************************************************************
+    //*********************************logica general de programa***********************************
+    //**********************************************************************************************
+
+    do
+    {
+            // limipiar
+        for(n = 0; n < N; n++)
+        {
+            xn[ n ][1] = 0;
+        }
+            // toma de datos.
+        MASK1 = N >> 1;
+        MASK2 = 1;
+        BitInverso();
+        for(n = 0; n < N/2; n++)
+        {
+            xn[ Iinv[n] ][0] = 170*sin(2*PI*n/N);
+            xn[ Iinv[n + N/2] ][0] = 170*sin(2*PI*n/N);
+        }
+            //fft
+        fft();
+        absarg();
+
+        asm("   ESTOP0");
+    }while (1);
+
+}
+//**********************************************************************************************
+//******************************Tratamiento interrupciones**************************************
+//**********************************************************************************************
+
+
+//**********************************************************************************************
+//******************************funciones de programa*******************************************
+//**********************************************************************************************
+void BitInverso(void)
+{
+    int tmp, m1, m2, i, x;
+    for(i = 0; i < N; i++)
+    {
+        m1 = MASK1;
+        m2 = MASK2;
+        tmp = 0;
+        for(x = 1; x < N; x <<= 1)
+        {
+            if( (i & m1) != 0 )
+            {
+                tmp |= m2;
+            }
+            m1 >>= 1;
+            m2 <<= 1;
+        }
+        Iinv[i] = tmp;
+    }
+}
+void fft(void)
+{
+    aux0 = (2*PI)/N;
+    for(r = 0; r < N/2; r++){
+        wr[r][0] = cos(aux0*r);
+        wr[r][1] = -sin(aux0*r);
+    }
+
+    u = 0;
+    w = 1;
+    et = N>>1;
+    do{
+        aux0 = xn[ u ][ 0 ];
+        xn[ u ][ 0 ] += xn[ w ][ 0 ];
+        xn[ w ][ 0 ] = aux0 - xn[ w ][ 0 ];
+        u += 2;
+        w += 2;
+    }while( u != N );
+
+    //*************************************************************
+
+    lm = 4;
+    nm = 0;
+    u = 0;
+    w = 2;
+
+    do
+    {
+        do
+        {
+            do
+            {
+                r = u * (et >> 1);
+                m = u + nm;
+                n = w + nm;
+                aux0 = xn[m][0];
+                aux1 = xn[n][0];
+                //calculo parte real
+                ans = (xn[n][0]*wr[r][0]) - (xn[n][1]*wr[r][1]);    //RR - II
+                xn[m][0] = xn[m][0] + ans;
+                xn[n][0] = aux0 - ans;
+                //calculo parte imaginario
+                ans = xn[n][1]*wr[r][0] + aux1*wr[r][1];            //IR + RI
+                aux0 = xn[m][1];
+                xn[m][1] = xn[m][1] + ans;
+                xn[n][1] = aux0 - ans;
+
+                u++;
+                w++;
+
+            }while(w != lm);
+            nm += lm;
+            u = 0;
+            w = lm >> 1;
+        }while(nm != N);
+        lm <<= 1;
+        u = 0;
+        w = lm >> 1;
+        nm = 0;
+        et >>= 1;
+    }while(et != 1);
+
+}
+
+void absarg(void)
+{
+    aux1 = 180/PI;
+    //nivel DC
+    aux0 = xn[0][0];
+    ans  = xn[0][1];
+    xn[n][0] = sqrt( (aux0*aux0) + (ans*ans) );
+    //armonicos
+    for(n = 1; n < (N); n++)
+    {
+        aux0 = xn[n][0];
+        ans  = xn[n][1];
+        xn[n][0] = sqrt( (aux0*aux0) + (ans*ans) );             //calculo de la magnitud
+        xn[n][0] /= N;                                          //FFT/N
+        xn[n][0] *= 2;
+                                                                //calculo de angulo
+        if((aux0 > 0) && (ans > 0)){
+            xn[n][1] = aux1*(atan( ans / aux0));
+        }
+        if((aux0 < 0) && (ans < 0)){
+            xn[n][1] = aux1*(atan( ans / aux0)) - 180;
+        }
+        if((aux0 < 0) && (ans >= 0)){
+            xn[n][1] = aux1*(atan((ans ) / aux0)) + 180;
+        }
+        if((aux0 > 0) && (ans < 0)){
+            xn[n][1] = aux1*(atan( ans / aux0));
+        }
+    }
+    // armonico del medio
+
+    xn[N/2 + 1][0] /= 2;
+}
+//si solo se quiere magnitud y fase
+//void absarg(void)
+//{
+//    aux1 = 180/PI;
+//    for(n = 0; n < N; n++)
+//    {
+//        aux0 = xn[n][0];
+//        ans  = xn[n][1];
+//        xn[n][0] = sqrt( (aux0*aux0) + (ans*ans) );
+//
+//        if((aux0 > 0) && (ans > 0)){
+//            xn[n][1] = aux1*(atan( ans / aux0));
+//        }
+//        if((aux0 < 0) && (ans < 0)){
+//            xn[n][1] = aux1*(atan( ans / aux0)) - 180;
+//        }
+//        if((aux0 < 0) && (ans >= 0)){
+//            xn[n][1] = aux1*(atan((ans ) / aux0)) + 180;
+//        }
+//        if((aux0 > 0) && (ans < 0)){
+//            xn[n][1] = aux1*(atan( ans / aux0));
+//        }
+//    }
+//}
+
+
+
+
+
+
+
