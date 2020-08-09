@@ -1,0 +1,44 @@
+/**
+ * main.c
+ */
+
+// El proposito de este programa es hacer parpadear
+// el LED integrado en la tarjeta, además se puede medir el voltaje
+// en el pin 40 -> GPIO0
+
+#include "F28x_Project.h"
+
+void Conf_GPIO_led(void);
+
+int main(void)
+{
+    // configurar la tarjeta con condiciones iniciales, el archivo de InitSysCtrl
+    InitSysCtrl();
+    // debido a que no se utiliza nada se deshabilitan los perifericos para
+    //menor consumo
+    DisablePeripheralClocks();
+    // se confguran los
+    Conf_GPIO_led();
+
+    while (1)
+    {
+        GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
+        GpioDataRegs.GPATOGGLE.bit.GPIO0 = 1;
+        DELAY_US(400000);
+    };
+}
+void Conf_GPIO_led(void) {
+    // hay registros que tienen proteccion y por lo tanto hay que
+    // pedir permisos
+    EALLOW;
+    GpioCtrlRegs.GPADIR.bit.GPIO31 = 1;
+    GpioCtrlRegs.GPAMUX2.bit.GPIO31 = 0;
+    GpioCtrlRegs.GPAPUD.bit.GPIO31 = 1;
+
+    GpioCtrlRegs.GPADIR.bit.GPIO0 = 1;
+    GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 0;
+    GpioCtrlRegs.GPAPUD.bit.GPIO0 = 1;
+    // hay registros que tienen proteccion y por lo tanto hay que
+    // pedir permisos, depues se deshabilitan los permisos
+    EDIS;
+}
