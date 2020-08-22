@@ -1,0 +1,52 @@
+//hacer toggle a 1[khz], pin 2. y led
+
+#include "F28x_Project.h"
+#include "math.h"
+    //**********************************************************************************************
+    //**********************************prototipos de programa**************************************
+    //**********************************************************************************************
+void ConfPort(void);
+void ConfEpwm(void);
+    //**********************************************************************************************
+    //***********************************variables de programa**************************************
+    //**********************************************************************************************
+
+    //**********************************************************************************************
+    //*************************************programa principal***************************************
+    //**********************************************************************************************
+void main(void)
+{
+    InitSysCtrl();  //se inicialice la DSP
+    ConfPort();     //se confinguran los pines
+    ConfEpwm();     //se configura Epwm
+    while(1)
+    {    };
+}
+    //**********************************************************************************************
+    //***********************************funciones de programa**************************************
+    //**********************************************************************************************
+void ConfPort(void)
+{
+    EALLOW;
+    GpioCtrlRegs.GPADIR.bit.GPIO2   = GPIO_OUTPUT; //pin de salida
+    GpioCtrlRegs.GPAMUX1.bit.GPIO2  = 1;           //que periferico se quiere en el pin GPIO0 : EPWM2(1) | gpio(0)
+    GpioCtrlRegs.GPAPUD.bit.GPIO2   = 1;           //deshabilitamos pullup
+    EDIS;
+}
+void ConfEpwm(void)
+{
+    EALLOW;
+    //ClkCfgRegs.PERCLKDIVSEL.bit.EPWMCLKDIV = 0 para reloj de 100Meg
+    EPwm2Regs.TBCTL.bit.CLKDIV = TB_DIV1;          // "
+    EPwm2Regs.TBCTL.bit.HSPCLKDIV = TB_DIV2;       // se define la frecuencia del Epwm
+    EPwm2Regs.TBPRD = 24999;                       // "
+
+    EPwm2Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP;     //se define como se va a contar ya sea creciente decreciente o mixto
+    EPwm2Regs.TBCTL.bit.FREE_SOFT = 3;             //cuando se va a dejar de contar, a un periodo(0) o nunca(3)
+    EPwm2Regs.AQCTLA.bit.CAU = AQ_SET;             //que hacer cuando comparador A (salida = 1)
+    EPwm2Regs.AQCTLA.bit.ZRO = AQ_CLEAR;           //que hacer cuando el contador es cero (salida = 0)
+
+    EPwm2Regs.CMPA.bit.CMPA = 12500;               //numero con el que se compara
+    EDIS;
+}
+
